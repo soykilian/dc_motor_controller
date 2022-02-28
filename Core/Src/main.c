@@ -31,6 +31,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define CPR 3592
+#define MAX_COUNT 65535
+#define POS 	-2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +58,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-
+void	move(int cycle1, int cycle2);
+void	ft_move_wise(int	cycle, int	flag_w);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -79,8 +83,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  //casteo a int 16 bits para contemplar negativos
 
-  int32_t value= 0;
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -96,27 +101,54 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_TIM_Base_Start_IT(&htim3);
- // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
- // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
+  int16_t start = TIM2->CNT;
+  HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 0);
+  move(0, 0);
+  int16_t value= 0;
   //int	start = htim2.Instance->CNT;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   //Esto hay que cambiarlo por interrupcciones del reloj y no un bucle infinito
+
+  if (POS > 0)
+	  ft_move_wise(50, 1);
+  else
+	  ft_move_wise(50, 0);
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 1);
     /* USER CODE BEGIN 3 */
 
-	  //move(0, 50);
-	 // HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 0);
-	  // Sasber el valor por debugging tras unos instantes para comprobar que al menos tiene datos de entrada
-	 HAL_Delay(500);
- 	 value = TIM2->CNT;
+	//  move(50, 0);
+	  // Saber el valor por debugging tras unos instantes para comprobar que al menos tiene datos de entrada
+ 	value = TIM2->CNT;
+ 	if (POS > 0)
+ 	{
+ 		if (value - start >= POS*CPR)
+ 		{
+ 			move(0, 0);
+ 			break;
+ 		}
+ 	}
+ 	else
+ 	{
+ 		if (value - start <= POS*CPR)
+ 		{
+ 			move(0, 0);
+ 			break;
+ 		}
+ 	}
+
+
+
+
 	 // printf("ENCODER %lf\n", value - start);
 
   }
@@ -346,7 +378,8 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void	move(int cycle1, int cycle2)
 {
-	// cycle1 es horario y cycle2 antihorario
+	// cycle1 es horario suma al contador
+//y cycle2 antihorario resta
 	if (cycle1 > 99)
 		cycle1 = 99;
 	else if (cycle1 < 0)
@@ -358,6 +391,16 @@ void	move(int cycle1, int cycle2)
 	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, cycle1);
 	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, cycle2);
 }
+
+void	ft_move_wise(int	cycle, int	flag_w)
+{
+	if (flag_w == 1)
+		move(cycle, 0);
+	else
+		move(0, cycle);
+}
+
+
 /* USER CODE END 4 */
 
 /**
