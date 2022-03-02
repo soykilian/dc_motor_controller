@@ -33,7 +33,8 @@
 /* USER CODE BEGIN PD */
 #define CPR 3592
 #define MAX_COUNT 65535
-#define POS 	-2
+#define POS 	1
+int16_t start;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,6 +45,7 @@
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart2;
 
@@ -57,6 +59,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 void	move(int cycle1, int cycle2);
 void	ft_move_wise(int	cycle, int	flag_w);
@@ -100,16 +103,17 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   MX_TIM2_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_Encoder_Start_IT(&htim2, TIM_CHANNEL_ALL);
-  int16_t start = TIM2->CNT;
+  HAL_TIM_Base_Start_IT(&htim6);
   HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 0);
-  move(0, 0);
-  int16_t value= 0;
-  //int	start = htim2.Instance->CNT;
+  move(0,0);
+  HAL_Delay(500);
+  //int	start = hti.Instance->CNT;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -120,34 +124,17 @@ int main(void)
 	  ft_move_wise(50, 1);
   else
 	  ft_move_wise(50, 0);
+  HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 1);
+  __HAL_TIM_SET_COUNTER(&htim2, 0);
+  start = TIM2->CNT;
   while (1)
   {
     /* USER CODE END WHILE */
-	  HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 1);
+
     /* USER CODE BEGIN 3 */
 
 	//  move(50, 0);
 	  // Saber el valor por debugging tras unos instantes para comprobar que al menos tiene datos de entrada
- 	value = TIM2->CNT;
- 	if (POS > 0)
- 	{
- 		if (value - start >= POS*CPR)
- 		{
- 			move(0, 0);
- 			break;
- 		}
- 	}
- 	else
- 	{
- 		if (value - start <= POS*CPR)
- 		{
- 			move(0, 0);
- 			break;
- 		}
- 	}
-
-
-
 
 	 // printf("ENCODER %lf\n", value - start);
 
@@ -308,6 +295,44 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 47;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 999;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -358,16 +383,16 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5|GPIO_PIN_10, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin|GPIO_PIN_10, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA5 PA10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_10;
+  /*Configure GPIO pins : LD2_Pin PA10 */
+  GPIO_InitStruct.Pin = LD2_Pin|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -400,7 +425,28 @@ void	ft_move_wise(int	cycle, int	flag_w)
 		move(0, cycle);
 }
 
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim->Instance == TIM6)
+	{
+	 	if (POS > 0)
+	 	{
+	 		if (TIM2->CNT - start >= POS*CPR)
+	 		{
+	 			HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 0);
+	 			move(0, 0);
+	 		}
+	 	}
+	 	else
+	 	{
+	 		if (TIM2->CNT - start <= POS*CPR)
+	 		{
+	 			HAL_GPIO_WritePin(GPIOA,GPIO_PIN_10, 0);
+	 			move(0, 0);
+	 		}
+	 	}
+	}
+}
 /* USER CODE END 4 */
 
 /**
